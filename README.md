@@ -1,3 +1,6 @@
+
+# Final Project CNE 350 
+
 # pi-power-button
 
 Scripts used in our official [Raspberry Pi power button guide](https://howchoo.com/g/mwnlytk3zmm/how-to-add-a-power-button-to-your-raspberry-pi).
