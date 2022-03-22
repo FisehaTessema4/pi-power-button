@@ -3,9 +3,103 @@
 
 # pi-power-button
 
+# Why is a Raspberry Pi power button important?
+You should never "yank" the power cord out of your Pi as this can lead to severe data corruption (and in some cases, physically damage your SD card). You can safely shut down your Pi via a software command or, even better, use a power button or switch
+
 Scripts used in our official [Raspberry Pi power button guide](https://howchoo.com/g/mwnlytk3zmm/how-to-add-a-power-button-to-your-raspberry-pi).
 
 ## Installation
+
+# Understanding the wake functionality
+There's nothing to build here, but we need to understand how to wake up the Pi from a halt state before we build the shutdown functionality. Simply put, shorting pins 5 and 6 (GPIO3 and GND) together will wake the Pi up from a halt state.
+
+An easy way to test this is to shutdown the Pi with sudo shutdown -h now, and connect pins 5 and 6 with a female to female cable. You only need to short them momentarily. Then you should find that the Pi is "awake".
+# Building the sleep functionality
+There are two options for building the sleep functionality: using our install script or installing everything manually. I recommend using the install script, but the manual approach will help you understand how this works.
+
+Option 1: Use the install script (easiest)
+The simplest way to install the required scripts is to clone our power button repository, and run the install script.
+
+SSH into your Pi, install git (if it's not already), and then run:
+```
+git clone https://github.com/Howchoo/pi-power-button.git
+
+./pi-power-button/script/install
+```
+First, we need to connect to the Pi via SSH. Then, we'll use a script called listen-for-shutdown.py.
+```
+sudo nano listen-for-shutdown.py
+```
+Then, paste the following code into that file, and press CTRL-X to exit, and Y to save when prompted.
+```
+#!/usr/bin/env python
+
+import RPi.GPIO as GPIO
+import subprocess
+
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(3, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.wait_for_edge(3, GPIO.FALLING)
+
+subprocess.call(['shutdown', '-h', 'now'], shell=False)
+```
+Next we need to start this script on boot. So we'll place the script in /usr/local/bin and make it executable:
+```
+sudo mv listen-for-shutdown.py /usr/local/bin/
+sudo chmod +x /usr/local/bin/listen-for-shutdown.py
+```
+
+Now add another script called listen-for-shutdown.sh that will start/stop our service. To create the script:
+```
+sudo nano listen-for-shutdown.sh
+```
+Enter the following code in that file and save it:
+```
+#! /bin/sh
+
+### BEGIN INIT INFO
+# Provides:          listen-for-shutdown.py
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+### END INIT INFO
+
+# If you want a command to always run, put it here
+
+# Carry out specific functions when asked to by the system
+case "$1" in
+  start)
+    echo "Starting listen-for-shutdown.py"
+    /usr/local/bin/listen-for-shutdown.py &
+    ;;
+  stop)
+    echo "Stopping listen-for-shutdown.py"
+    pkill -f /usr/local/bin/listen-for-shutdown.py
+    ;;
+  *)
+    echo "Usage: /etc/init.d/listen-for-shutdown.sh {start|stop}"
+    exit 1
+    ;;
+esac
+
+exit 0
+```
+Place this file in /etc/init.d and make it executable.
+```
+sudo mv listen-for-shutdown.sh /etc/init.d/
+sudo chmod +x /etc/init.d/listen-for-shutdown.sh
+```
+Now we'll register the script to run on boot.
+```
+sudo update-rc.d listen-for-shutdown.sh defaults
+```
+Since the script won't be running, we'll go ahead and start it with:
+```
+sudo /etc/init.d/listen-for-shutdown.sh start
+```
+
 
 1. [Connect to your Raspberry Pi via SSH](https://howchoo.com/g/mgi3mdnlnjq/how-to-log-in-to-a-raspberry-pi-via-ssh)
 1. Clone this repo: `git clone https://github.com/Howchoo/pi-power-button.git`
